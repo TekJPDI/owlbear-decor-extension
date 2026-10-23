@@ -1,0 +1,38 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8">
+  <title>Décor</title>
+  <style>
+    html, body {
+      margin: 0;
+      padding: 0;
+      width: 100vw;
+      height: 100vh;
+      background-color: #000;
+      overflow: hidden;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+    }
+    img {
+      max-width: 100%;
+      max-height: 100%;
+      object-fit: contain;
+      box-shadow: 0 0 50px rgba(0,0,0,0.8);
+    }
+  </style>
+</head>
+<body>
+
+  <img id="decorImg" src="" alt="Décor d'ambiance">
+
+  <script>
+    const urlParams = new URLSearchParams(window.location.search);
+    const imgUrl = urlParams.get('img');
+    if (imgUrl) {
+      document.getElementById('decorImg').src = imgUrl;
+    }
+  </script>
+</body>
+</html>
