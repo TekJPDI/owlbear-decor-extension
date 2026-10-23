@@ -16,12 +16,19 @@
 <body>
   <img id="decorImg" src="" alt="Décor">
   <script>
+    // Charge instantanément l'image via le paramètre URL (zéro délai de réseau)
+    const urlParams = new URLSearchParams(window.location.search);
+    const imgUrl = urlParams.get('img');
+    if (imgUrl) {
+      document.getElementById('decorImg').src = imgUrl;
+    }
+
     OBR.onReady(() => {
       OBR.broadcast.onMessage("DECOR_EVENT", (event) => {
         if (event.data.action === "SHOW" && event.data.url) {
           document.getElementById('decorImg').src = event.data.url;
         } else if (event.data.action === "CLOSE") {
-          OBR.modal.close();
+          OBR.modal.close("owlbear-decor-display");
         }
       });
     });
