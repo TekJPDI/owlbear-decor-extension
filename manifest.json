@@ -8,7 +8,7 @@
   "action": {
     "title": "Decors d'Ambiance",
     "icon": "https://raw.githubusercontent.com/twitter/twemoji/master/assets/svg/1f3a2.svg",
-    "popover": "https://tekjpdi.github.io/owlbear-decor-extension/popover.html?v=local2",    
+    "popover": "https://tekjpdi.github.io/owlbear-decor-extension/popover.html?v=sdk_fix1",    
     "width": 360,
     "height": 480
   }
