@@ -42,6 +42,16 @@
     .btn-show { background: #89b4fa; color: #11111b; width: auto; padding: 4px 8px; }
     .btn-close { background: #f38ba8; color: #11111b; margin-top: 10px; }
     
+    #statusBox {
+      display: none;
+      padding: 8px;
+      border-radius: 4px;
+      font-size: 12px;
+      margin-bottom: 8px;
+    }
+    .status-error { background: #f38ba8; color: #11111b; font-weight: bold; }
+    .status-success { background: #a6e3a1; color: #11111b; font-weight: bold; }
+
     .decor-item {
       display: flex;
       justify-content: space-between;
@@ -56,6 +66,7 @@
 <body>
 
   <h3>🎬 Décors d'Ambiance</h3>
+  <div id="statusBox"></div>
 
   <div class="card">
     <input type="text" id="decorTitle" placeholder="Nom du lieu (ex: Le Diner)">
@@ -72,14 +83,32 @@
   <script>
     let decors = [];
 
-    window.showDecor = function(index) {
-      const decor = decors[index];
-      if (decor) {
-        OBR.broadcast.sendMessage("DECOR_EVENT", { action: "SHOW", url: decor.url });
-        OBR.modal.open({
-          url: "https://tekjpdi.github.io/owlbear-decor-extension/display.html",
+    function showStatus(message, type = "success") {
+      const box = document.getElementById('statusBox');
+      box.className = `status-${type}`;
+      box.innerText = message;
+      box.style.display = 'block';
+      setTimeout(() => { box.style.display = 'none'; }, 3000);
+    }
+
+    window.showDecor = async function(index) {
+      try {
+        const decor = decors[index];
+        if (!decor) return;
+
+        // Diffuse l'événement aux autres
+        await OBR.broadcast.sendMessage("DECOR_EVENT", { action: "SHOW", url: decor.url });
+
+        // Ouvre le modal localement avec un ID unique pour éviter les conflits
+        await OBR.modal.open({
+          id: "owlbear-decor-display",
+          url: `https://tekjpdi.github.io/owlbear-decor-extension/display.html?img=${encodeURIComponent(decor.url)}`,
           fullScreen: true
         });
+
+        showStatus(`Projeté : ${decor.title}`, "success");
+      } catch (err) {
+        showStatus(`Erreur : ${err.message}`, "error");
       }
     };
 
@@ -89,7 +118,7 @@
         const url = document.getElementById('decorUrl').value.trim();
 
         if (!title || !url) {
-          alert("Veuillez remplir le nom et l'URL de l'image.");
+          showStatus("Veuillez remplir le nom et l'URL.", "error");
           return;
         }
 
@@ -98,11 +127,17 @@
 
         document.getElementById('decorTitle').value = '';
         document.getElementById('decorUrl').value = '';
+        showStatus("Décor ajouté à la liste !", "success");
       });
 
-      document.getElementById('closeAllBtn').addEventListener('click', () => {
-        OBR.broadcast.sendMessage("DECOR_EVENT", { action: "CLOSE" });
-        OBR.modal.close();
+      document.getElementById('closeAllBtn').addEventListener('click', async () => {
+        try {
+          await OBR.broadcast.sendMessage("DECOR_EVENT", { action: "CLOSE" });
+          await OBR.modal.close("owlbear-decor-display");
+          showStatus("Décor masqué.", "success");
+        } catch (err) {
+          showStatus(`Erreur : ${err.message}`, "error");
+        }
       });
     });
 
