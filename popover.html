@@ -1,164 +1,318 @@
 <!DOCTYPE html>
 <html lang="fr">
 <head>
-  <meta charset="UTF-8">
-  <title>Gestionnaire de Décors</title>
-  <!-- Chargement sécurisé du SDK Owlbear Rodeo -->
-  <script src="https://sdk.owlbear.rodeo/sdk.js"></script>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Décors d'ambiance</title>
   <style>
+    :root {
+      --ink: #14161d;
+      --panel: #1d2029;
+      --line: #2e3240;
+      --text: #ece7da;
+      --muted: #9b9889;
+      --lantern: #e0b25a;
+      --lantern-ink: #2a1f08;
+      --danger: #e07a6a;
+      color-scheme: dark;
+    }
     * { box-sizing: border-box; }
+    html, body { margin: 0; height: 100%; }
     body {
-      font-family: system-ui, -apple-system, sans-serif;
-      background: #1e1e2e;
-      color: #cdd6f4;
-      padding: 12px;
+      background: var(--ink);
+      color: var(--text);
+      font: 14px/1.45 system-ui, -apple-system, "Segoe UI", sans-serif;
+      padding: 14px;
+      display: flex; flex-direction: column; gap: 14px;
+      overflow-y: auto;
+    }
+    h1 {
       margin: 0;
+      font: italic 600 1.35rem/1.2 Georgia, "Times New Roman", serif;
+      letter-spacing: .01em;
     }
-    h3 { margin-top: 0; color: #f38ba8; text-align: center; font-size: 16px; }
-    .card {
-      background: #313244;
-      border-radius: 8px;
-      padding: 10px;
-      margin-bottom: 10px;
-    }
-    input[type="text"] {
-      width: 100%;
-      padding: 8px;
-      margin-bottom: 8px;
-      background: #181825;
-      border: 1px solid #45475a;
-      color: #fff;
-      border-radius: 4px;
-    }
-    button {
-      width: 100%;
-      padding: 8px;
-      border: none;
-      border-radius: 4px;
-      font-weight: bold;
-      cursor: pointer;
-      margin-top: 4px;
-    }
-    .btn-add { background: #a6e3a1; color: #11111b; }
-    .btn-show { background: #89b4fa; color: #11111b; width: auto; padding: 4px 8px; }
-    .btn-close { background: #f38ba8; color: #11111b; margin-top: 10px; }
-    
-    #statusBox {
-      display: none;
-      padding: 8px;
-      border-radius: 4px;
-      font-size: 12px;
-      margin-bottom: 8px;
-    }
-    .status-error { background: #f38ba8; color: #11111b; font-weight: bold; }
-    .status-success { background: #a6e3a1; color: #11111b; font-weight: bold; }
+    h2 { margin: 0 0 8px; font-size: .95rem; font-weight: 600; }
 
-    .decor-item {
-      display: flex;
-      justify-content: space-between;
-      align-items: center;
-      background: #181825;
-      padding: 6px 10px;
-      border-radius: 4px;
-      margin-top: 6px;
+    #status {
+      display: flex; align-items: center; gap: 10px;
+      padding: 8px 10px;
+      background: var(--panel);
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      min-height: 52px;
     }
+    #status .dot { width: 9px; height: 9px; border-radius: 50%; background: var(--muted); flex: none; }
+    #status.on { border-color: var(--lantern); }
+    #status.on .dot { background: var(--lantern); box-shadow: 0 0 8px var(--lantern); }
+    #status img { width: 56px; height: 36px; object-fit: cover; border-radius: 4px; flex: none; }
+    #status .txt { flex: 1; min-width: 0; }
+    #status .txt strong, #status .txt small { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    #status small { color: var(--muted); }
+
+    form { display: grid; gap: 8px; }
+    label { display: grid; gap: 4px; color: var(--muted); font-size: .85rem; }
+    input[type="text"], input[type="url"] {
+      width: 100%;
+      font: inherit; color: var(--text);
+      background: var(--panel);
+      border: 1px solid var(--line);
+      border-radius: 6px;
+      padding: .55em .7em;
+    }
+    input:focus-visible { outline: 2px solid var(--lantern); outline-offset: 1px; border-color: transparent; }
+
+    .row { display: flex; gap: 8px; }
+    button {
+      font: inherit; cursor: pointer;
+      color: var(--text);
+      background: transparent;
+      border: 1px solid var(--line);
+      border-radius: 6px;
+      padding: .5em .85em;
+    }
+    button:hover:not(:disabled) { border-color: var(--lantern); color: var(--lantern); }
+    button:focus-visible { outline: 2px solid var(--lantern); outline-offset: 2px; }
+    button:disabled { opacity: .45; cursor: not-allowed; }
+    button.primary { background: var(--lantern); color: var(--lantern-ink); border-color: var(--lantern); font-weight: 600; flex: 1; }
+    button.primary:hover:not(:disabled) { background: #edc272; color: var(--lantern-ink); }
+    button.danger:hover:not(:disabled) { border-color: var(--danger); color: var(--danger); }
+
+    #message { min-height: 1.3em; font-size: .85rem; color: var(--muted); }
+    #message.error { color: var(--danger); }
+
+    #library { list-style: none; margin: 0; padding: 0; display: grid; gap: 6px; }
+    #library li {
+      display: flex; align-items: center; gap: 10px;
+      padding: 6px;
+      background: var(--panel);
+      border: 1px solid var(--line);
+      border-radius: 8px;
+    }
+    #library li.current { border-color: var(--lantern); }
+    #library img { width: 64px; height: 40px; object-fit: cover; border-radius: 4px; background: #000; flex: none; }
+    #library .name { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    #library button { padding: .35em .6em; font-size: .85rem; }
+    .empty { color: var(--muted); font-size: .9rem; margin: 0; }
+
+    #locked {
+      display: none;
+      padding: 12px;
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      background: var(--panel);
+      color: var(--muted);
+    }
+    body.player #locked { display: block; }
+    body.player main { display: none; }
+    main { display: flex; flex-direction: column; gap: 14px; }
   </style>
 </head>
 <body>
 
-  <h3>🎬 Décors d'Ambiance</h3>
-  <div id="statusBox"></div>
+  <h1>Décors d'ambiance</h1>
 
-  <div class="card">
-    <input type="text" id="decorTitle" placeholder="Nom du lieu (ex: Le Diner)">
-    <input type="text" id="decorUrl" placeholder="URL de l'image (HTTPS)">
-    <button class="btn-add" id="addBtn">➕ Ajouter le Décor</button>
-  </div>
+  <div id="locked">Seul le MJ peut changer le décor. Quand il en affiche un, il apparaît automatiquement en plein écran.</div>
 
-  <div class="card" id="decorList">
-    <small style="color: #a6adc8;">Aucun décor enregistré.</small>
-  </div>
+  <main>
+    <div id="status" aria-live="polite">
+      <span class="dot"></span>
+      <div class="txt"><strong>Aucun décor affiché</strong></div>
+    </div>
 
-  <button class="btn-close" id="closeAllBtn">🛑 Masquer le Décor</button>
+    <form id="form" autocomplete="off">
+      <label>Adresse de l'image (lien direct, https)
+        <input id="url" type="url" required placeholder="https://exemple.com/taverne.jpg">
+      </label>
+      <label>Légende (facultatif)
+        <input id="title" type="text" maxlength="80" placeholder="La Taverne du Sanglier Rouge">
+      </label>
+      <div class="row">
+        <button id="show" class="primary" type="submit">Afficher pour tous</button>
+        <button id="save" type="button">Ajouter à la bibliothèque</button>
+      </div>
+      <div class="row">
+        <button id="hide" class="danger" type="button" style="flex:1">Retirer le décor pour tous</button>
+      </div>
+      <div id="message" role="status"></div>
+    </form>
 
-  <script>
-    let decors = [];
+    <section>
+      <h2>Bibliothèque</h2>
+      <ul id="library"></ul>
+      <p id="empty" class="empty" hidden>Aucun décor enregistré. Ajoutez une adresse d'image ci-dessus pour la retrouver ici.</p>
+    </section>
+  </main>
 
-    function showStatus(message, type = "success") {
-      const box = document.getElementById('statusBox');
-      box.className = `status-${type}`;
-      box.innerText = message;
-      box.style.display = 'block';
-      setTimeout(() => { box.style.display = 'none'; }, 3000);
-    }
+  <script type="module">
+    import OBR from "https://esm.sh/@owlbear-rodeo/sdk@3";
 
-    window.showDecor = async function(index) {
-      try {
-        const decor = decors[index];
-        if (!decor) return;
+    const NS          = "com.tekjpdi.decor";
+    const STATE_KEY   = `${NS}/state`;
+    const LIBRARY_KEY = `${NS}/library`;
+    const MAX_ITEMS   = 30; // les métadonnées de salle sont limitées en taille
 
-        await OBR.broadcast.sendMessage("DECOR_EVENT", { action: "SHOW", url: decor.url });
-        await OBR.modal.open({
-          id: "owlbear-decor-display",
-          url: `https://tekjpdi.github.io/owlbear-decor-extension/display.html?img=${encodeURIComponent(decor.url)}`,
-          fullScreen: true
-        });
-
-        showStatus(`Projeté : ${decor.title}`, "success");
-      } catch (err) {
-        showStatus(`Erreur : ${err.message}`, "error");
-      }
+    const $ = (id) => document.getElementById(id);
+    const els = {
+      status: $("status"), form: $("form"), url: $("url"), title: $("title"),
+      show: $("show"), save: $("save"), hide: $("hide"),
+      message: $("message"), library: $("library"), empty: $("empty")
     };
 
-    // Vérification de la disponibilité d'Owlbear Rodeo SDK
-    if (typeof OBR === 'undefined') {
-      console.error("Le SDK Owlbear Rodeo n'a pas pu être chargé.");
-      document.body.innerHTML = '<h3 style="color: #f38ba8; text-align:center; padding: 20px;">Erreur : Impossible de charger le SDK Owlbear Rodeo. Vérifiez votre connexion ou vos extensions de blocage (uBlock Origin).</h3>';
-    } else {
-      OBR.onReady(() => {
-        document.getElementById('addBtn').addEventListener('click', () => {
-          const title = document.getElementById('decorTitle').value.trim();
-          const url = document.getElementById('decorUrl').value.trim();
+    let metadata = {};
+    let isGM = false;
 
-          if (!title || !url) {
-            showStatus("Veuillez remplir le nom et l'URL.", "error");
-            return;
-          }
-
-          decors.push({ title, url });
-          renderList();
-
-          document.getElementById('decorTitle', 'decorUrl').value = '';
-          document.getElementById('decorTitle').value = '';
-          document.getElementById('decorUrl').value = '';
-          showStatus("Décor ajouté à la liste !", "success");
-        });
-
-        document.getElementById('closeAllBtn').addEventListener('click', async () => {
-          try {
-            await OBR.broadcast.sendMessage("DECOR_EVENT", { action: "CLOSE" });
-            await OBR.modal.close("owlbear-decor-display");
-            showStatus("Décor masqué.", "success");
-          } catch (err) {
-            showStatus(`Erreur : ${err.message}`, "error");
-          }
-        });
-      });
+    /* ------------------------------ utilitaires ------------------------------ */
+    function say(text, isError = false) {
+      els.message.textContent = text;
+      els.message.classList.toggle("error", isError);
     }
 
-    function renderList() {
-      const container = document.getElementById('decorList');
-      container.innerHTML = '';
-      decors.forEach((item, index) => {
-        const div = document.createElement('div');
-        div.className = 'decor-item';
-        div.innerHTML = `
-          <span><b>${item.title}</b></span>
-          <button class="btn-show" onclick="window.showDecor(${index})">📺 Projeter</button>
-        `;
-        container.appendChild(div);
-      });
+    function cleanUrl(raw) {
+      try {
+        const u = new URL(String(raw).trim());
+        if (u.protocol !== "https:") return null; // Owlbear est en https : le http serait bloqué
+        return u.toString();
+      } catch (_) { return null; }
     }
+
+    const getState   = () => metadata[STATE_KEY] || { active: false, url: "", title: "", ts: 0 };
+    const getLibrary = () => Array.isArray(metadata[LIBRARY_KEY]) ? metadata[LIBRARY_KEY] : [];
+
+    async function write(patch) {
+      await OBR.room.setMetadata(patch);
+    }
+
+    /* -------------------------------- actions -------------------------------- */
+    async function display(url, title) {
+      await write({ [STATE_KEY]: { active: true, url, title: title || "", ts: Date.now() } });
+    }
+
+    async function clearDisplay() {
+      const st = getState();
+      await write({ [STATE_KEY]: { active: false, url: st.url, title: st.title, ts: Date.now() } });
+    }
+
+    async function addToLibrary(url, title) {
+      const lib = getLibrary();
+      if (lib.some((i) => i.url === url)) { say("Ce décor est déjà dans la bibliothèque."); return; }
+      if (lib.length >= MAX_ITEMS) { say(`Bibliothèque pleine (${MAX_ITEMS} décors max). Supprimez-en un d'abord.`, true); return; }
+      const name = title || decodeURIComponent(url.split("/").pop().split("?")[0] || "Décor").slice(0, 80);
+      await write({ [LIBRARY_KEY]: [...lib, { id: crypto.randomUUID(), name, url }] });
+      say("Ajouté à la bibliothèque.");
+    }
+
+    async function removeFromLibrary(id) {
+      await write({ [LIBRARY_KEY]: getLibrary().filter((i) => i.id !== id) });
+    }
+
+    /* -------------------------------- rendu -------------------------------- */
+    function renderStatus() {
+      const st = getState();
+      els.status.classList.toggle("on", !!st.active);
+      els.status.replaceChildren();
+
+      const dot = document.createElement("span");
+      dot.className = "dot";
+      els.status.append(dot);
+
+      if (st.active && st.url) {
+        const img = document.createElement("img");
+        img.src = st.url; img.alt = "";
+        const txt = document.createElement("div");
+        txt.className = "txt";
+        const strong = document.createElement("strong");
+        strong.textContent = st.title || "Décor affiché";
+        const small = document.createElement("small");
+        small.textContent = "Visible par tous les joueurs";
+        txt.append(strong, small);
+        els.status.append(img, txt);
+      } else {
+        const txt = document.createElement("div");
+        txt.className = "txt";
+        const strong = document.createElement("strong");
+        strong.textContent = "Aucun décor affiché";
+        txt.append(strong);
+        els.status.append(txt);
+      }
+      els.hide.disabled = !st.active;
+    }
+
+    function renderLibrary() {
+      const lib = getLibrary();
+      const st = getState();
+      els.library.replaceChildren();
+      els.empty.hidden = lib.length > 0;
+
+      for (const item of lib) {
+        const li = document.createElement("li");
+        if (st.active && st.url === item.url) li.classList.add("current");
+
+        const img = document.createElement("img");
+        img.src = item.url; img.alt = ""; img.loading = "lazy";
+
+        const name = document.createElement("span");
+        name.className = "name"; name.textContent = item.name; name.title = item.name;
+
+        const go = document.createElement("button");
+        go.type = "button"; go.textContent = "Afficher";
+        go.addEventListener("click", async () => {
+          try { await display(item.url, item.name); say(""); }
+          catch (e) { say("Impossible d'afficher le décor : " + e.message, true); }
+        });
+
+        const del = document.createElement("button");
+        del.type = "button"; del.className = "danger"; del.textContent = "Supprimer";
+        del.setAttribute("aria-label", `Supprimer ${item.name}`);
+        del.addEventListener("click", async () => {
+          try { await removeFromLibrary(item.id); }
+          catch (e) { say("Suppression impossible : " + e.message, true); }
+        });
+
+        li.append(img, name, go, del);
+        els.library.append(li);
+      }
+    }
+
+    function render() {
+      renderStatus();
+      renderLibrary();
+    }
+
+    /* ----------------------------- événements ----------------------------- */
+    els.form.addEventListener("submit", async (e) => {
+      e.preventDefault();
+      const url = cleanUrl(els.url.value);
+      if (!url) { say("Adresse invalide : utilisez un lien https direct vers une image.", true); return; }
+      try {
+        await display(url, els.title.value.trim());
+        say("Décor envoyé aux joueurs.");
+      } catch (err) { say("Échec de l'envoi : " + err.message, true); }
+    });
+
+    els.save.addEventListener("click", async () => {
+      const url = cleanUrl(els.url.value);
+      if (!url) { say("Adresse invalide : utilisez un lien https direct vers une image.", true); return; }
+      try { await addToLibrary(url, els.title.value.trim()); }
+      catch (err) { say("Enregistrement impossible : " + err.message, true); }
+    });
+
+    els.hide.addEventListener("click", async () => {
+      try { await clearDisplay(); say("Décor retiré."); }
+      catch (err) { say("Échec : " + err.message, true); }
+    });
+
+    /* ------------------------------- démarrage ------------------------------- */
+    OBR.onReady(async () => {
+      try {
+        isGM = (await OBR.player.getRole()) === "GM";
+        document.body.classList.toggle("player", !isGM);
+        metadata = await OBR.room.getMetadata();
+        render();
+        OBR.room.onMetadataChange((m) => { metadata = m; render(); });
+      } catch (err) {
+        say("Erreur d'initialisation : " + err.message, true);
+      }
+    });
   </script>
 </body>
 </html>

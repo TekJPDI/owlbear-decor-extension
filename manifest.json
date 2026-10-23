@@ -1,15 +1,17 @@
 {
-  "manifest_version": 1,
-  "name": "Gestionnaire de Decors Fixes",
+  "name": "Décors d'ambiance",
   "version": "1.0.0",
-  "icon": "https://raw.githubusercontent.com/twitter/twemoji/master/assets/svg/1f3a2.svg",
-  "author": "MJ Chaos",
-  "description": "Affiche des decors fixes plein ecran synchronises pour tous les joueurs.",
+  "manifest_version": 1,
+  "description": "Affiche un décor plein écran (Theater of the Mind) à tous les joueurs de la table.",
+  "author": "tekjpdi",
+  "homepage_url": "https://tekjpdi.github.io/owlbear-decor-extension/",
+  "icon": "https://tekjpdi.github.io/owlbear-decor-extension/icon.svg",
   "action": {
-    "title": "Decors d'Ambiance",
-    "icon": "https://raw.githubusercontent.com/twitter/twemoji/master/assets/svg/1f3a2.svg",
-    "popover": "https://tekjpdi.github.io/owlbear-decor-extension/popover.html?v=sdk_fix1",    
-    "width": 360,
-    "height": 480
-  }
+    "title": "Décors d'ambiance",
+    "icon": "https://tekjpdi.github.io/owlbear-decor-extension/icon.svg",
+    "popover": "https://tekjpdi.github.io/owlbear-decor-extension/popover.html",
+    "width": 380,
+    "height": 580
+  },
+  "background_url": "https://tekjpdi.github.io/owlbear-decor-extension/display.html"
 }
