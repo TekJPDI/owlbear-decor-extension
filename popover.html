@@ -5,8 +5,9 @@
   <title>Gestionnaire de Décors</title>
   <script src="https://sdk.owlbear.rodeo/sdk.js"></script>
   <style>
+    * { box-sizing: border-box; }
     body {
-      font-family: system-ui, sans-serif;
+      font-family: system-ui, -apple-system, sans-serif;
       background: #1e1e2e;
       color: #cdd6f4;
       padding: 12px;
@@ -20,9 +21,9 @@
       margin-bottom: 10px;
     }
     input[type="text"], input[type="file"] {
-      width: 90%;
-      padding: 6px;
-      margin-bottom: 6px;
+      width: 100%;
+      padding: 8px;
+      margin-bottom: 8px;
       background: #181825;
       border: 1px solid #45475a;
       color: #fff;
@@ -42,8 +43,23 @@
       margin-top: 4px;
     }
     .btn-add { background: #a6e3a1; color: #11111b; }
-    .btn-show { background: #89b4fa; color: #11111b; }
+    .btn-add:disabled { background: #585b70; cursor: not-allowed; }
+    .btn-show { background: #89b4fa; color: #11111b; width: auto; padding: 4px 8px; }
     .btn-close { background: #f38ba8; color: #11111b; margin-top: 10px; }
+    
+    /* Zone de retour/Status Error */
+    #statusBox {
+      display: none;
+      padding: 8px;
+      border-radius: 4px;
+      font-size: 12px;
+      margin-bottom: 8px;
+      word-break: break-word;
+    }
+    .status-error { background: #f38ba8; color: #11111b; font-weight: bold; }
+    .status-success { background: #a6e3a1; color: #11111b; font-weight: bold; }
+    .status-info { background: #89b4fa; color: #11111b; }
+
     .decor-item {
       display: flex;
       justify-content: space-between;
@@ -58,6 +74,9 @@
 <body>
 
   <h3>🎬 Décors Locaux</h3>
+
+  <!-- Boîte de retour d'erreur / statut -->
+  <div id="statusBox"></div>
 
   <div class="card">
     <input type="text" id="decorTitle" placeholder="Nom du lieu (ex: Le Diner)">
@@ -74,54 +93,118 @@
   <script>
     let decors = [];
 
-    // Définition de showDecor pour qu'elle soit accessible globalement
+    // Fonction d'affichage des messages d'état
+    function showStatus(message, type = "error") {
+      const box = document.getElementById('statusBox');
+      box.className = `status-${type}`;
+      box.innerText = message;
+      box.style.display = 'block';
+
+      // Auto-masquage après 4 secondes pour les succès
+      if (type === "success") {
+        setTimeout(() => { box.style.display = 'none'; }, 4000);
+      }
+    }
+
+    // Projeter un décor
     window.showDecor = function(index) {
-      const decor = decors[index];
-      if (decor) {
+      try {
+        const decor = decors[index];
+        if (!decor) throw new Error("Décor introuvable dans la liste.");
+
         OBR.broadcast.sendMessage("DECOR_EVENT", { action: "SHOW", dataUrl: decor.dataUrl });
         OBR.modal.open({
           url: "https://tekjpdi.github.io/owlbear-decor-extension/display.html",
           fullScreen: true
         });
+        showStatus(`Décor "${decor.title}" projeté avec succès !`, "success");
+      } catch (err) {
+        showStatus(`Erreur lors de la projection : ${err.message}`, "error");
       }
     };
 
     OBR.onReady(() => {
-      // Écouteur sur le bouton d'ajout
-      document.getElementById('addBtn').addEventListener('click', () => {
-        const titleInput = document.getElementById('decorTitle');
-        const fileInput = document.getElementById('decorFile');
-        
-        const title = titleInput.value.trim();
-        const file = fileInput.files[0];
+      const addBtn = document.getElementById('addBtn');
 
-        if (!title) {
-          alert("Veuillez entrer un nom pour le décor.");
-          return;
-        }
-
-        if (!file) {
-          alert("Veuillez sélectionner une image sur votre ordinateur.");
-          return;
-        }
-
-        // Lecture synchrone du fichier sélectionné
-        const reader = new FileReader();
-        reader.onload = (event) => {
-          decors.push({ title: title, dataUrl: event.target.result });
-          renderList();
+      addBtn.addEventListener('click', () => {
+        try {
+          const titleInput = document.getElementById('decorTitle');
+          const fileInput = document.getElementById('decorFile');
           
-          // Réinitialisation des champs
-          titleInput.value = '';
-          fileInput.value = '';
-        };
-        reader.readAsDataURL(file);
+          const title = titleInput.value.trim();
+          const file = fileInput.files[0];
+
+          // --- VÉRIFICATIONS ET ERREURS ---
+          if (!title) {
+            showStatus("⚠️ Erreur : Veuillez entrer un nom pour le décor.", "error");
+            return;
+          }
+
+          if (!file) {
+            showStatus("⚠️ Erreur : Aucun fichier sélectionné. Choisissez une image sur votre PC.", "error");
+            return;
+          }
+
+          if (!file.type.startsWith('image/')) {
+            showStatus("⚠️ Erreur : Le fichier choisi n'est pas une image valide.", "error");
+            return;
+          }
+
+          // Limitation taille (optionnelle pour éviter les crashs de mémoire VTT, ex: 15Mo)
+          if (file.size > 15 * 1024 * 1024) {
+            showStatus("⚠️ Erreur : L'image est trop lourde (> 15 Mo). Utilisez une image plus légère.", "error");
+            return;
+          }
+
+          // Indicateur de chargement pendant la lecture du fichier
+          addBtn.disabled = true;
+          addBtn.innerText = "⏳ Lecture de l'image...";
+          showStatus("Chargement de l'image en cours...", "info");
+
+          const reader = new FileReader();
+
+          reader.onload = (event) => {
+            try {
+              decors.push({ title: title, dataUrl: event.target.result });
+              renderList();
+              
+              // Réinitialisation des champs
+              titleInput.value = '';
+              fileInput.value = '';
+              
+              showStatus(`✅ Décor "${title}" ajouté avec succès !`, "success");
+            } catch (innerErr) {
+              showStatus(`⚠️ Erreur d'ajout : ${innerErr.message}`, "error");
+            } finally {
+              addBtn.disabled = false;
+              addBtn.innerText = "➕ Importer depuis mon PC";
+            }
+          };
+
+          reader.onerror = () => {
+            showStatus("❌ Erreur : Impossible de lire le fichier depuis le disque dur.", "error");
+            addBtn.disabled = false;
+            addBtn.innerText = "➕ Importer depuis mon PC";
+          };
+
+          reader.readAsDataURL(file);
+
+        } catch (globalErr) {
+          showStatus(`❌ Erreur critique : ${globalErr.message}`, "error");
+          addBtn.disabled = false;
+          addBtn.innerText = "➕ Importer depuis mon PC";
+        }
       });
 
-      // Bouton de fermeture globale
+      // Bouton de fermeture
       document.getElementById('closeAllBtn').addEventListener('click', () => {
-        OBR.broadcast.sendMessage("DECOR_EVENT", { action: "CLOSE" });
-        OBR.modal.close();
+        try {
+          OBR.broadcast.sendMessage("DECOR_EVENT", { action: "CLOSE" });
+          OBR.modal.close();
+          showStatus("Écran de décor retiré.", "info");
+        } catch (err) {
+          showStatus(`Erreur de fermeture : ${err.message}`, "error");
+        }
       });
     });
 
