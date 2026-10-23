@@ -3,6 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <title>Gestionnaire de Décors</title>
+  <!-- Chargement sécurisé du SDK Owlbear Rodeo -->
   <script src="https://sdk.owlbear.rodeo/sdk.js"></script>
   <style>
     * { box-sizing: border-box; }
@@ -96,10 +97,7 @@
         const decor = decors[index];
         if (!decor) return;
 
-        // Diffuse l'événement aux autres
         await OBR.broadcast.sendMessage("DECOR_EVENT", { action: "SHOW", url: decor.url });
-
-        // Ouvre le modal localement avec un ID unique pour éviter les conflits
         await OBR.modal.open({
           id: "owlbear-decor-display",
           url: `https://tekjpdi.github.io/owlbear-decor-extension/display.html?img=${encodeURIComponent(decor.url)}`,
@@ -112,34 +110,41 @@
       }
     };
 
-    OBR.onReady(() => {
-      document.getElementById('addBtn').addEventListener('click', () => {
-        const title = document.getElementById('decorTitle').value.trim();
-        const url = document.getElementById('decorUrl').value.trim();
+    // Vérification de la disponibilité d'Owlbear Rodeo SDK
+    if (typeof OBR === 'undefined') {
+      console.error("Le SDK Owlbear Rodeo n'a pas pu être chargé.");
+      document.body.innerHTML = '<h3 style="color: #f38ba8; text-align:center; padding: 20px;">Erreur : Impossible de charger le SDK Owlbear Rodeo. Vérifiez votre connexion ou vos extensions de blocage (uBlock Origin).</h3>';
+    } else {
+      OBR.onReady(() => {
+        document.getElementById('addBtn').addEventListener('click', () => {
+          const title = document.getElementById('decorTitle').value.trim();
+          const url = document.getElementById('decorUrl').value.trim();
 
-        if (!title || !url) {
-          showStatus("Veuillez remplir le nom et l'URL.", "error");
-          return;
-        }
+          if (!title || !url) {
+            showStatus("Veuillez remplir le nom et l'URL.", "error");
+            return;
+          }
 
-        decors.push({ title, url });
-        renderList();
+          decors.push({ title, url });
+          renderList();
 
-        document.getElementById('decorTitle').value = '';
-        document.getElementById('decorUrl').value = '';
-        showStatus("Décor ajouté à la liste !", "success");
+          document.getElementById('decorTitle', 'decorUrl').value = '';
+          document.getElementById('decorTitle').value = '';
+          document.getElementById('decorUrl').value = '';
+          showStatus("Décor ajouté à la liste !", "success");
+        });
+
+        document.getElementById('closeAllBtn').addEventListener('click', async () => {
+          try {
+            await OBR.broadcast.sendMessage("DECOR_EVENT", { action: "CLOSE" });
+            await OBR.modal.close("owlbear-decor-display");
+            showStatus("Décor masqué.", "success");
+          } catch (err) {
+            showStatus(`Erreur : ${err.message}`, "error");
+          }
+        });
       });
-
-      document.getElementById('closeAllBtn').addEventListener('click', async () => {
-        try {
-          await OBR.broadcast.sendMessage("DECOR_EVENT", { action: "CLOSE" });
-          await OBR.modal.close("owlbear-decor-display");
-          showStatus("Décor masqué.", "success");
-        } catch (err) {
-          showStatus(`Erreur : ${err.message}`, "error");
-        }
-      });
-    });
+    }
 
     function renderList() {
       const container = document.getElementById('decorList');
