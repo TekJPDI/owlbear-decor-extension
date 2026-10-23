@@ -3,6 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <title>Décor</title>
+  <script src="https://sdk.owlbear.rodeo/sdk.js"></script>
   <style>
     html, body {
       margin: 0;
@@ -28,11 +29,15 @@
   <img id="decorImg" src="" alt="Décor d'ambiance">
 
   <script>
-    const urlParams = new URLSearchParams(window.location.search);
-    const imgUrl = urlParams.get('img');
-    if (imgUrl) {
-      document.getElementById('decorImg').src = imgUrl;
-    }
+    OBR.onReady(() => {
+      OBR.broadcast.onMessage("DECOR_EVENT", (event) => {
+        if (event.data.action === "SHOW" && event.data.dataUrl) {
+          document.getElementById('decorImg').src = event.data.dataUrl;
+        } else if (event.data.action === "CLOSE") {
+          OBR.modal.close();
+        }
+      });
+    });
   </script>
 </body>
 </html>
