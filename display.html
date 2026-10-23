@@ -26,21 +26,15 @@
     #stage { position: fixed; inset: 0; display: none; }
     body.view #stage { display: block; }
 
-    /* Copie floutée qui remplit les bandes noires autour de l'image */
-    #backdrop {
-      position: absolute; inset: -5%;
-      width: 110%; height: 110%;
+    /* Chaque décor est une couche ; on fond d'une couche à l'autre */
+    .layer { position: absolute; inset: 0; opacity: 0; transition: opacity 1s ease; }
+    .layer.in { opacity: 1; }
+    .layer .backdrop {
+      position: absolute; inset: -5%; width: 110%; height: 110%;
       object-fit: cover;
       filter: blur(40px) brightness(.45) saturate(1.1);
     }
-    #picture {
-      position: absolute; inset: 0;
-      width: 100%; height: 100%;
-      object-fit: contain;
-      opacity: 0;
-      transition: opacity .8s ease;
-    }
-    #picture.loaded { opacity: 1; }
+    .layer .picture { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: contain; }
 
     #caption {
       position: absolute; left: 50%; bottom: 4vh;
@@ -89,15 +83,13 @@
     #clear-all[hidden] { display: none; }
 
     @media (prefers-reduced-motion: reduce) {
-      #picture, #caption, #controls { transition: none; }
+      .layer, #caption, #controls { transition: none; }
     }
   </style>
 </head>
 <body>
 
   <div id="stage">
-    <img id="backdrop" alt="" aria-hidden="true">
-    <img id="picture" alt="Décor d'ambiance">
     <div id="error" role="alert"></div>
     <div id="caption"></div>
     <div id="controls">
@@ -113,6 +105,8 @@
     const STATE_KEY   = `${NS}/state`;      // { active, url, title, ts }
     const MODAL_ID    = `${NS}/display`;
     const DISMISS_KEY = `${NS}.dismissed`;  // dernier décor masqué localement
+    const SCENE_KEY    = `${NS}/scene`;     // métadonnée de scène : { url, title }
+    const SETTINGS_KEY = `${NS}/settings`;  // métadonnée de salle : { auto }
 
     const params = new URLSearchParams(location.search);
     const isView = params.get("view") === "1";
@@ -122,30 +116,64 @@
      *  MODE VUE : page ouverte en modale plein écran
      * ------------------------------------------------------------------ */
     async function runView() {
-      const src   = params.get("src") || "";
-      const title = params.get("title") || "";
-      const ts    = params.get("ts") || "";
+      const stage   = document.getElementById("stage");
+      const caption = document.getElementById("caption");
+      const error   = document.getElementById("error");
+      const FADE = 1000;
+      let currentTs = params.get("ts") || "";
+      let layer = null;
+      let closeTimer = null;
 
-      const picture  = document.getElementById("picture");
-      const backdrop = document.getElementById("backdrop");
-      const caption  = document.getElementById("caption");
-      const error    = document.getElementById("error");
+      function setCaption(text) {
+        caption.style.opacity = "0";
+        setTimeout(() => { caption.textContent = text; caption.style.opacity = "1"; }, 350);
+      }
 
-      caption.textContent = title;
+      // Fondu enchaîné : la nouvelle image apparaît par-dessus, l'ancienne s'efface
+      function showImage(src, text) {
+        clearTimeout(closeTimer);
+        error.classList.remove("show");
+        const next = document.createElement("div");
+        next.className = "layer";
+        const bg = new Image();
+        bg.className = "backdrop"; bg.alt = ""; bg.setAttribute("aria-hidden", "true");
+        const pic = new Image();
+        pic.className = "picture"; pic.alt = "Décor d'ambiance";
+        next.append(bg, pic);
 
-      picture.addEventListener("load", () => picture.classList.add("loaded"));
-      picture.addEventListener("error", () => {
-        error.textContent = "L'image n'a pas pu être chargée. Vérifiez que l'adresse est un lien direct vers une image en https.";
-        error.classList.add("show");
-        caption.textContent = "";
-      });
-      picture.src = src;
-      backdrop.src = src;
+        pic.addEventListener("load", () => {
+          stage.insertBefore(next, caption);
+          requestAnimationFrame(() => requestAnimationFrame(() => next.classList.add("in")));
+          const old = layer;
+          layer = next;
+          if (old) {
+            old.classList.remove("in");
+            setTimeout(() => old.remove(), FADE + 100);
+          }
+          setCaption(text);
+        });
+        pic.addEventListener("error", () => {
+          error.textContent = "L'image n'a pas pu être chargée. Vérifiez que l'adresse est un lien direct vers une image en https.";
+          error.classList.add("show");
+        });
+        bg.src = src;
+        pic.src = src;
+      }
+
+      // Fondu vers le noir puis fermeture de la modale
+      function fadeOutAndClose() {
+        if (layer) layer.classList.remove("in");
+        caption.style.opacity = "0";
+        clearTimeout(closeTimer);
+        closeTimer = setTimeout(() => OBR.modal.close(MODAL_ID).catch(() => {}), FADE + 100);
+      }
 
       async function closeLocal() {
-        try { localStorage.setItem(DISMISS_KEY, ts); } catch (_) {}
+        try { localStorage.setItem(DISMISS_KEY, currentTs); } catch (_) {}
         try { await OBR.modal.close(MODAL_ID); } catch (_) {}
       }
+
+      showImage(params.get("src") || "", params.get("title") || "");
 
       document.getElementById("close-local").addEventListener("click", closeLocal);
       window.addEventListener("keydown", (e) => { if (e.key === "Escape") closeLocal(); });
@@ -157,15 +185,24 @@
             const btn = document.getElementById("clear-all");
             btn.hidden = false;
             btn.addEventListener("click", async () => {
+              const st = (await OBR.room.getMetadata())[STATE_KEY] || {};
               await OBR.room.setMetadata({
-                [STATE_KEY]: { active: false, url: "", title: "", ts: Date.now() }
+                [STATE_KEY]: { active: false, url: st.url || "", title: st.title || "", ts: Date.now() }
               });
-              try { await OBR.modal.close(MODAL_ID); } catch (_) {}
             });
           }
         } catch (err) {
           console.error("[Décors] Rôle introuvable :", err);
         }
+
+        // Le décor change en direct, sans fermer ni rouvrir la modale
+        OBR.room.onMetadataChange((m) => {
+          const st = m[STATE_KEY];
+          if (!st || !st.active || !st.url) { fadeOutAndClose(); return; }
+          if (String(st.ts) === currentTs) return;
+          currentTs = String(st.ts);
+          showImage(st.url, st.title || "");
+        });
       });
     }
 
@@ -174,6 +211,7 @@
      * ------------------------------------------------------------------ */
     function runBackground() {
       let openedTs = null;
+      let closeTimer = null;
       let busy = Promise.resolve();
 
       const viewUrl = (st) => {
@@ -190,27 +228,31 @@
       async function sync(metadata) {
         const st = metadata ? metadata[STATE_KEY] : null;
 
-        // Plus de décor actif : on ferme la modale si elle est ouverte
+        // Plus de décor : la modale se ferme d'elle-même après son fondu ;
+        // on garde une fermeture de secours au cas où.
         if (!st || !st.active || !st.url) {
           if (openedTs !== null) {
             openedTs = null;
-            try { await OBR.modal.close(MODAL_ID); } catch (_) {}
+            clearTimeout(closeTimer);
+            closeTimer = setTimeout(() => {
+              if (openedTs === null) OBR.modal.close(MODAL_ID).catch(() => {});
+            }, 1800);
           }
           return;
         }
 
-        // Déjà affiché (ou masqué volontairement) : on ne ré-ouvre pas
         if (st.ts === openedTs) return;
+        clearTimeout(closeTimer);
 
         let dismissed = null;
         try { dismissed = localStorage.getItem(DISMISS_KEY); } catch (_) {}
         if (dismissed === String(st.ts)) { openedTs = st.ts; return; }
 
-        // Nouveau décor : on remplace l'éventuel précédent
-        if (openedTs !== null) {
-          try { await OBR.modal.close(MODAL_ID); } catch (_) {}
-        }
+        // Modale déjà ouverte : elle se met à jour toute seule (fondu enchaîné)
+        const wasOpen = openedTs !== null && dismissed !== String(openedTs);
         openedTs = st.ts;
+        if (wasOpen) return;
+
         try {
           await OBR.modal.open({
             id: MODAL_ID,
@@ -227,9 +269,45 @@
 
       const queue = (metadata) => { busy = busy.then(() => sync(metadata)); };
 
+      // MJ uniquement : à chaque changement de scène, on applique le décor lié
+      async function watchScenes() {
+        async function applyScene() {
+          try {
+            const [sceneMeta, roomMeta] = await Promise.all([OBR.scene.getMetadata(), OBR.room.getMetadata()]);
+            const settings = roomMeta[SETTINGS_KEY];
+            if (settings && settings.auto === false) return;
+            const link = sceneMeta[SCENE_KEY];
+            const st = roomMeta[STATE_KEY] || {};
+            if (link && link.url) {
+              await OBR.room.setMetadata({
+                [STATE_KEY]: { active: true, url: link.url, title: link.title || "", ts: Date.now() }
+              });
+            } else if (st.active) {
+              // Scène sans décor : on retire celui de la scène précédente
+              await OBR.room.setMetadata({
+                [STATE_KEY]: { active: false, url: st.url || "", title: st.title || "", ts: Date.now() }
+              });
+            }
+          } catch (err) {
+            console.error("[Décors] Application du décor de scène impossible :", err);
+          }
+        }
+
+        // Le premier chargement de la page n'est pas un changement de scène
+        let skipNext = !(await OBR.scene.isReady());
+        OBR.scene.onReadyChange((ready) => {
+          if (!ready) return;
+          if (skipNext) { skipNext = false; return; }
+          applyScene();
+        });
+      }
+
       OBR.onReady(async () => {
         try { queue(await OBR.room.getMetadata()); } catch (err) { console.error(err); }
         OBR.room.onMetadataChange(queue);
+        try {
+          if ((await OBR.player.getRole()) === "GM") await watchScenes();
+        } catch (err) { console.error(err); }
       });
     }
 

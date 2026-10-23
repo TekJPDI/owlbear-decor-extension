@@ -77,6 +77,16 @@
     button.primary:hover:not(:disabled) { background: #edc272; color: var(--lantern-ink); }
     button.danger:hover:not(:disabled) { border-color: var(--danger); color: var(--danger); }
 
+    #scene-link {
+      display: flex; align-items: center; gap: 10px;
+      padding: 6px; margin-bottom: 8px; min-height: 52px;
+      background: var(--panel); border: 1px solid var(--line); border-radius: 8px;
+    }
+    #scene-link img { width: 64px; height: 40px; object-fit: cover; border-radius: 4px; flex: none; }
+    #scene-link .txt { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    #scene-link .txt small { display: block; color: var(--muted); }
+    .check { display: flex; align-items: flex-start; gap: 8px; margin-top: 8px; color: var(--text); }
+    .check input { margin-top: 3px; accent-color: var(--lantern); }
     #message { min-height: 1.3em; font-size: .85rem; color: var(--muted); }
     #message.error { color: var(--danger); }
 
@@ -137,6 +147,20 @@
     </form>
 
     <section>
+      <h2>Scène actuelle</h2>
+      <div id="scene-link"></div>
+      <div class="row">
+        <button id="link" type="button" style="flex:1">Lier l'image saisie</button>
+        <button id="replay" type="button">Réafficher</button>
+        <button id="unlink" class="danger" type="button">Délier</button>
+      </div>
+      <label class="check">
+        <input id="auto" type="checkbox">
+        <span>Afficher le décor lié à chaque changement de scène</span>
+      </label>
+    </section>
+
+    <section>
       <h2>Bibliothèque</h2>
       <ul id="library"></ul>
       <p id="empty" class="empty" hidden>Aucun décor enregistré. Ajoutez une adresse d'image ci-dessus pour la retrouver ici.</p>
@@ -149,17 +173,22 @@
     const NS          = "com.tekjpdi.decor";
     const STATE_KEY   = `${NS}/state`;
     const LIBRARY_KEY = `${NS}/library`;
+    const SCENE_KEY    = `${NS}/scene`;     // métadonnée de la scène : { url, title }
+    const SETTINGS_KEY = `${NS}/settings`;  // métadonnée de salle : { auto }
     const MAX_ITEMS   = 30; // les métadonnées de salle sont limitées en taille
 
     const $ = (id) => document.getElementById(id);
     const els = {
       status: $("status"), form: $("form"), url: $("url"), title: $("title"),
       show: $("show"), save: $("save"), hide: $("hide"),
+      scene: $("scene-link"), link: $("link"), replay: $("replay"), unlink: $("unlink"), auto: $("auto"),
       message: $("message"), library: $("library"), empty: $("empty")
     };
 
     let metadata = {};
     let isGM = false;
+    let sceneReady = false;
+    let sceneLink = null;
 
     /* ------------------------------ utilitaires ------------------------------ */
     function say(text, isError = false) {
@@ -203,6 +232,22 @@
 
     async function removeFromLibrary(id) {
       await write({ [LIBRARY_KEY]: getLibrary().filter((i) => i.id !== id) });
+    }
+
+    async function refreshScene() {
+      sceneReady = await OBR.scene.isReady();
+      sceneLink = null;
+      if (sceneReady) sceneLink = (await OBR.scene.getMetadata())[SCENE_KEY] || null;
+      renderScene();
+    }
+
+    async function linkScene(url, title) {
+      if (!sceneReady) { say("Ouvrez d'abord une scène pour y lier un décor.", true); return; }
+      await OBR.scene.setMetadata({ [SCENE_KEY]: { url, title: title || "" } });
+      sceneLink = { url, title: title || "" };
+      renderScene();
+      await display(url, title);
+      say("Décor lié à cette scène et affiché.");
     }
 
     /* -------------------------------- rendu -------------------------------- */
@@ -260,22 +305,57 @@
           catch (e) { say("Impossible d'afficher le décor : " + e.message, true); }
         });
 
+        const lnk = document.createElement("button");
+        lnk.type = "button"; lnk.textContent = "Lier";
+        lnk.title = "Lier ce décor à la scène actuelle";
+        lnk.addEventListener("click", async () => {
+          try { await linkScene(item.url, item.name); }
+          catch (e) { say("Liaison impossible : " + e.message, true); }
+        });
+
         const del = document.createElement("button");
-        del.type = "button"; del.className = "danger"; del.textContent = "Supprimer";
+        del.type = "button"; del.className = "danger"; del.textContent = "✕";
         del.setAttribute("aria-label", `Supprimer ${item.name}`);
         del.addEventListener("click", async () => {
           try { await removeFromLibrary(item.id); }
           catch (e) { say("Suppression impossible : " + e.message, true); }
         });
 
-        li.append(img, name, go, del);
+        li.append(img, name, go, lnk, del);
         els.library.append(li);
       }
+    }
+
+    function renderScene() {
+      els.scene.replaceChildren();
+      const txt = document.createElement("div");
+      txt.className = "txt";
+      if (!sceneReady) {
+        txt.textContent = "Aucune scène ouverte.";
+      } else if (sceneLink && sceneLink.url) {
+        const img = document.createElement("img");
+        img.src = sceneLink.url; img.alt = "";
+        const strong = document.createElement("strong");
+        strong.textContent = sceneLink.title || "Décor lié";
+        const small = document.createElement("small");
+        small.textContent = "S'affiche quand vous ouvrez cette scène";
+        txt.append(strong, small);
+        els.scene.append(img);
+      } else {
+        txt.textContent = "Aucun décor lié à cette scène.";
+      }
+      els.scene.append(txt);
+      els.link.disabled = !sceneReady;
+      els.replay.disabled = !(sceneLink && sceneLink.url);
+      els.unlink.disabled = !(sceneLink && sceneLink.url);
     }
 
     function render() {
       renderStatus();
       renderLibrary();
+      renderScene();
+      const settings = metadata[SETTINGS_KEY];
+      els.auto.checked = !(settings && settings.auto === false);
     }
 
     /* ----------------------------- événements ----------------------------- */
@@ -301,6 +381,33 @@
       catch (err) { say("Échec : " + err.message, true); }
     });
 
+    els.link.addEventListener("click", async () => {
+      const url = cleanUrl(els.url.value);
+      if (!url) { say("Saisissez d'abord l'adresse d'une image (https).", true); return; }
+      try { await linkScene(url, els.title.value.trim()); }
+      catch (err) { say("Liaison impossible : " + err.message, true); }
+    });
+
+    els.replay.addEventListener("click", async () => {
+      if (!sceneLink) return;
+      try { await display(sceneLink.url, sceneLink.title); say("Décor de la scène réaffiché."); }
+      catch (err) { say("Échec : " + err.message, true); }
+    });
+
+    els.unlink.addEventListener("click", async () => {
+      try {
+        await OBR.scene.setMetadata({ [SCENE_KEY]: undefined });
+        sceneLink = null;
+        renderScene();
+        say("Décor délié de cette scène.");
+      } catch (err) { say("Échec : " + err.message, true); }
+    });
+
+    els.auto.addEventListener("change", async () => {
+      try { await write({ [SETTINGS_KEY]: { auto: els.auto.checked } }); }
+      catch (err) { say("Échec : " + err.message, true); }
+    });
+
     /* ------------------------------- démarrage ------------------------------- */
     OBR.onReady(async () => {
       try {
@@ -309,6 +416,9 @@
         metadata = await OBR.room.getMetadata();
         render();
         OBR.room.onMetadataChange((m) => { metadata = m; render(); });
+        await refreshScene();
+        OBR.scene.onReadyChange(() => refreshScene());
+        OBR.scene.onMetadataChange((m) => { sceneLink = m[SCENE_KEY] || null; renderScene(); });
       } catch (err) {
         say("Erreur d'initialisation : " + err.message, true);
       }
