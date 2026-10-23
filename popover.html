@@ -73,36 +73,52 @@
 
   <script>
     let decors = [];
-    let currentFileData = null;
+
+    // Définition de showDecor pour qu'elle soit accessible globalement
+    window.showDecor = function(index) {
+      const decor = decors[index];
+      if (decor) {
+        OBR.broadcast.sendMessage("DECOR_EVENT", { action: "SHOW", dataUrl: decor.dataUrl });
+        OBR.modal.open({
+          url: "https://tekjpdi.github.io/owlbear-decor-extension/display.html",
+          fullScreen: true
+        });
+      }
+    };
 
     OBR.onReady(() => {
-      // Écoute la sélection du fichier local
-      document.getElementById('decorFile').addEventListener('change', (e) => {
-        const file = e.target.files[0];
-        if (file) {
-          const reader = new FileReader();
-          reader.onload = (event) => {
-            currentFileData = event.target.result;
-          };
-          reader.readAsDataURL(file);
-        }
-      });
-
-      // Ajouter à la liste
+      // Écouteur sur le bouton d'ajout
       document.getElementById('addBtn').addEventListener('click', () => {
-        const title = document.getElementById('decorTitle').value;
-        if (title && currentFileData) {
-          decors.push({ title, dataUrl: currentFileData });
-          renderList();
-          document.getElementById('decorTitle').value = '';
-          document.getElementById('decorFile').value = '';
-          currentFileData = null;
-        } else {
-          alert("Veuillez choisir un nom et une image sur votre ordinateur.");
+        const titleInput = document.getElementById('decorTitle');
+        const fileInput = document.getElementById('decorFile');
+        
+        const title = titleInput.value.trim();
+        const file = fileInput.files[0];
+
+        if (!title) {
+          alert("Veuillez entrer un nom pour le décor.");
+          return;
         }
+
+        if (!file) {
+          alert("Veuillez sélectionner une image sur votre ordinateur.");
+          return;
+        }
+
+        // Lecture synchrone du fichier sélectionné
+        const reader = new FileReader();
+        reader.onload = (event) => {
+          decors.push({ title: title, dataUrl: event.target.result });
+          renderList();
+          
+          // Réinitialisation des champs
+          titleInput.value = '';
+          fileInput.value = '';
+        };
+        reader.readAsDataURL(file);
       });
 
-      // Retirer l'écran de décor chez tout le monde
+      // Bouton de fermeture globale
       document.getElementById('closeAllBtn').addEventListener('click', () => {
         OBR.broadcast.sendMessage("DECOR_EVENT", { action: "CLOSE" });
         OBR.modal.close();
@@ -112,27 +128,16 @@
     function renderList() {
       const container = document.getElementById('decorList');
       container.innerHTML = '';
-      decors.forEach((item) => {
+      decors.forEach((item, index) => {
         const div = document.createElement('div');
         div.className = 'decor-item';
         div.innerHTML = `
           <span><b>${item.title}</b></span>
-          <button class="btn-show" onclick="showDecor('${item.title}')">📺 Projeter</button>
+          <button class="btn-show" onclick="window.showDecor(${index})">📺 Projeter</button>
         `;
         container.appendChild(div);
       });
     }
-
-    window.showDecor = function(title) {
-      const decor = decors.find(d => d.title === title);
-      if (decor) {
-        OBR.broadcast.sendMessage("DECOR_EVENT", { action: "SHOW", dataUrl: decor.dataUrl });
-        OBR.modal.open({
-          url: "https://tekjpdi.github.io/owlbear-decor-extension/display.html",
-          fullScreen: true
-        });
-      }
-    };
   </script>
 </body>
 </html>
