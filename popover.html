@@ -1,50 +1,138 @@
-OBR.onReady(() => {
-  OBR.broadcast.onMessage("DECOR_EVENT", (event) => {
-    if (event.data.action === "SHOW") {
-      OBR.modal.open({
-        url: `https://tekjpdi.github.io/owlbear-decor-extension/display.html?img=${encodeURIComponent(event.data.url)}`,
-        fullScreen: true
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8">
+  <title>Gestionnaire de Décors</title>
+  <script src="https://sdk.owlbear.rodeo/sdk.js"></script>
+  <style>
+    body {
+      font-family: system-ui, sans-serif;
+      background: #1e1e2e;
+      color: #cdd6f4;
+      padding: 12px;
+      margin: 0;
+    }
+    h3 { margin-top: 0; color: #f38ba8; text-align: center; font-size: 16px; }
+    .card {
+      background: #313244;
+      border-radius: 8px;
+      padding: 10px;
+      margin-bottom: 10px;
+    }
+    input[type="text"], input[type="file"] {
+      width: 90%;
+      padding: 6px;
+      margin-bottom: 6px;
+      background: #181825;
+      border: 1px solid #45475a;
+      color: #fff;
+      border-radius: 4px;
+    }
+    input[type="file"] {
+      font-size: 12px;
+      cursor: pointer;
+    }
+    button {
+      width: 100%;
+      padding: 8px;
+      border: none;
+      border-radius: 4px;
+      font-weight: bold;
+      cursor: pointer;
+      margin-top: 4px;
+    }
+    .btn-add { background: #a6e3a1; color: #11111b; }
+    .btn-show { background: #89b4fa; color: #11111b; }
+    .btn-close { background: #f38ba8; color: #11111b; margin-top: 10px; }
+    .decor-item {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      background: #181825;
+      padding: 6px 10px;
+      border-radius: 4px;
+      margin-top: 6px;
+    }
+  </style>
+</head>
+<body>
+
+  <h3>🎬 Décors Locaux</h3>
+
+  <div class="card">
+    <input type="text" id="decorTitle" placeholder="Nom du lieu (ex: Le Diner)">
+    <input type="file" id="decorFile" accept="image/*">
+    <button class="btn-add" id="addBtn">➕ Importer depuis mon PC</button>
+  </div>
+
+  <div class="card" id="decorList">
+    <small style="color: #a6adc8;">Aucun décor chargé pour le moment.</small>
+  </div>
+
+  <button class="btn-close" id="closeAllBtn">🛑 Retirer l'Écran de Décor</button>
+
+  <script>
+    let decors = [];
+    let currentFileData = null;
+
+    OBR.onReady(() => {
+      // Écoute la sélection du fichier local
+      document.getElementById('decorFile').addEventListener('change', (e) => {
+        const file = e.target.files[0];
+        if (file) {
+          const reader = new FileReader();
+          reader.onload = (event) => {
+            currentFileData = event.target.result;
+          };
+          reader.readAsDataURL(file);
+        }
       });
-    } else if (event.data.action === "CLOSE") {
-      OBR.modal.close();
+
+      // Ajouter à la liste
+      document.getElementById('addBtn').addEventListener('click', () => {
+        const title = document.getElementById('decorTitle').value;
+        if (title && currentFileData) {
+          decors.push({ title, dataUrl: currentFileData });
+          renderList();
+          document.getElementById('decorTitle').value = '';
+          document.getElementById('decorFile').value = '';
+          currentFileData = null;
+        } else {
+          alert("Veuillez choisir un nom et une image sur votre ordinateur.");
+        }
+      });
+
+      // Retirer l'écran de décor chez tout le monde
+      document.getElementById('closeAllBtn').addEventListener('click', () => {
+        OBR.broadcast.sendMessage("DECOR_EVENT", { action: "CLOSE" });
+        OBR.modal.close();
+      });
+    });
+
+    function renderList() {
+      const container = document.getElementById('decorList');
+      container.innerHTML = '';
+      decors.forEach((item) => {
+        const div = document.createElement('div');
+        div.className = 'decor-item';
+        div.innerHTML = `
+          <span><b>${item.title}</b></span>
+          <button class="btn-show" onclick="showDecor('${item.title}')">📺 Projeter</button>
+        `;
+        container.appendChild(div);
+      });
     }
-  });
 
-  document.getElementById('addBtn').addEventListener('click', () => {
-    const title = document.getElementById('decorTitle').value;
-    const url = document.getElementById('decorUrl').value;
-    if (title && url) {
-      decors.push({ title, url });
-      renderList();
-      document.getElementById('decorTitle').value = '';
-      document.getElementById('decorUrl').value = '';
-    }
-  });
-
-  document.getElementById('closeAllBtn').addEventListener('click', () => {
-    OBR.broadcast.sendMessage("DECOR_EVENT", { action: "CLOSE" });
-    OBR.modal.close();
-  });
-});
-
-function renderList() {
-  const container = document.getElementById('decorList');
-  container.innerHTML = '';
-  decors.forEach((item, index) => {
-    const div = document.createElement('div');
-    div.className = 'decor-item';
-    div.innerHTML = `
-      <span><b>${item.title}</b></span>
-      <button class="btn-show" onclick="showDecor('${item.url}')">📺 Projeter</button>
-    `;
-    container.appendChild(div);
-  });
-}
-
-function showDecor(url) {
-  OBR.broadcast.sendMessage("DECOR_EVENT", { action: "SHOW", url: url });
-  OBR.modal.open({
-    url: `https://tekjpdi.github.io/owlbear-decor-extension/display.html?img=${encodeURIComponent(url)}`,
-    fullScreen: true
-  });
-}
+    window.showDecor = function(title) {
+      const decor = decors.find(d => d.title === title);
+      if (decor) {
+        OBR.broadcast.sendMessage("DECOR_EVENT", { action: "SHOW", dataUrl: decor.dataUrl });
+        OBR.modal.open({
+          url: "https://tekjpdi.github.io/owlbear-decor-extension/display.html",
+          fullScreen: true
+        });
+      }
+    };
+  </script>
+</body>
+</html>
