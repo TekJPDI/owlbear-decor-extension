@@ -74,7 +74,7 @@
       OBR.broadcast.onMessage("DECOR_EVENT", (event) => {
         if (event.data.action === "SHOW") {
           OBR.modal.open({
-            url: `/display.html?img=${encodeURIComponent(event.data.url)}`,
+            url: `./display.html?img=${encodeURIComponent(event.data.url)}`,
             fullScreen: true
           });
         } else if (event.data.action === "CLOSE") {
@@ -116,7 +116,7 @@
     function showDecor(url) {
       OBR.broadcast.sendMessage("DECOR_EVENT", { action: "SHOW", url: url });
       OBR.modal.open({
-        url: `/display.html?img=${encodeURIComponent(url)}`,
+        url: `./display.html?img=${encodeURIComponent(url)}`,
         fullScreen: true
       });
     }
